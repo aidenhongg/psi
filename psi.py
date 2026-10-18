@@ -1,7 +1,7 @@
 """Psi: an open-source workflow language model.
 
 Psi reads a memory of past workflow decisions (embedding, label) and answers a new call by weighing its nearest
-memories with a transformer instead of a fixed softmax(beta * cosine). Each retrieved memory is a token; its relative
+memories with a learned, multi-head network (a neural kNN hybrid) instead of a fixed softmax(beta * cosine). Each retrieved memory is a pattern; its relative
 distance to the query is the token's positional encoding, and pairwise distances between memories (plus whether two
 memories share a label) are per-head attention biases. The model is label-agnostic, so one pretrained Psi works on a
 new workflow without training: give it the workflow's memory and it votes.

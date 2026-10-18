@@ -20,7 +20,7 @@
 
 Agents answer the same kinds of questions thousands of times a day: *categorize this transaction*, *does this invoice match*, *is anything odd here*. Each answer is a call to a large language model that costs money and seconds.
 
-**Psi answers them from memory instead.** It keeps a workflow's past decisions as a memory of `(embedding, label)` rows and reads that memory with a transformer trained for exactly one job: deciding which past decisions should vote, and how much. There's no LLM call and no per-workflow training. Point Psi at a workflow's memory and it answers.
+**Psi answers them from memory instead.** It keeps a workflow's past decisions as a memory of `(embedding, label)` rows and recalls from it with a novel neural kNN hybrid: it retrieves the nearest past decisions like kNN, then a learned multi-head network trained for exactly one job decides which of them should vote, and how much. There's no LLM call and no per-workflow training. Point Psi at a workflow's memory and it answers.
 
 A language model reads a sequence of words. **A workflow language model reads a sequence of past decisions**, ordered by how close each one is to the call in front of it.
 
@@ -40,21 +40,21 @@ A language model reads a sequence of words. **A workflow language model reads a 
 flowchart LR
     A[new call] --> B["encoder<br/>bge-small, frozen"]
     B --> C["retrieve the 64<br/>nearest memories"]
-    C --> D["Psi transformer<br/>relative distance = position<br/>pairwise distance + label agreement = attention bias"]
+    C --> D["Psi kNN hybrid<br/>relative distance = position<br/>pairwise distance + label agreement shape recall"]
     D --> E["one weight<br/>per memory"]
     E --> F["vote:<br/>p(label) = Σ weights"]
     F --> G[answer + the rows that voted]
 ```
 
 - **Relative distance is the positional encoding.** A memory has no index position. Its position is its distance from the query, encoded with sinusoidal frequencies, so the closest memories are "first".
-- **Pairwise relative distance is an attention bias.** Every head adds a learned function of the distance between two memories, and of whether they share a label, to its attention scores. Psi sees clusters, outliers and disagreement directly.
+- **Memories read each other.** Every layer lets the retrieved neighbors exchange information; Psi biases each head's recall by the distance between two memories and by whether they share a label. Psi sees clusters, outliers and disagreement directly.
 - **Imbalance-aware.** Each memory token knows how common its label is in the memory and how big the memory is, so Psi learns its own correction for skewed labels.
 - **The vote.** `p(label | call) = Σ softmax(Psi(call, memories))ᵢ` over the retrieved memories carrying that label.
 
 | Architecture | |
 |---|---|
 | Parameters | 204M |
-| Transformer | 16 layers, width 1024, 16 heads, pre-LN |
+| Neural kNN hybrid | 16 layers, width 1024, 16 heads |
 | Memories read per call | 64 |
 | Encoder (frozen, not included) | [BAAI/bge-small-en-v1.5](https://huggingface.co/BAAI/bge-small-en-v1.5) |
 | Weights | `model.safetensors`, fp16, via Git LFS |
