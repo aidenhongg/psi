@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="200" viewBox="0 0 560 200">
+  <defs>
+    <filter id="r"><feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="2.6"/></filter>
+  </defs>
+  <g transform="translate(18,22) scale(3.1)" filter="url(#r)">
+    <path d="M12 38h30a9 9 0 0 0 1.5-17.9A13 13 0 0 0 18.6 17 10 10 0 0 0 12 38z" fill="#EDE7FF" stroke="#2B2B33" stroke-width="2.2" stroke-linejoin="round"/>
+    <path d="M20 29q2.5 2.4 5 0M30 29q2.5 2.4 5 0" fill="none" stroke="#2B2B33" stroke-width="2" stroke-linecap="round"/>
+    <path d="M44 4h6l-6 7h6M51 13h4l-4 5h4" fill="none" stroke="#6A4FD8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="222" y="128" font-family="Comic Sans MS, Chalkboard SE, Segoe Print, cursive" font-weight="700" font-size="104" fill="#2B2B33">psi</text>
+  <text x="400" y="128" font-family="Georgia, serif" font-size="96" fill="#6A4FD8">Ψ</text>
+  <g fill="none" stroke-width="7" stroke-linecap="round">
+    <path d="M226 160 Q246 150 266 160" stroke="#FF8A80"/><path d="M272 160 Q292 150 312 160" stroke="#FFB84D"/>
+    <path d="M318 160 Q338 150 358 160" stroke="#7BD8B4"/><path d="M364 160 Q384 150 404 160" stroke="#7FB7FF"/>
+    <path d="M410 160 Q430 150 450 160" stroke="#B39DFF"/>
+  </g>
+</svg>
