@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <b>Up to +6.8 points more accurate than a tuned Hopfield memory, on data it has never seen.</b>
+  <b>Up to +6.5 points more accurate than a tuned Hopfield memory, on data it has never seen.</b>
 </p>
 
 ---
@@ -61,7 +61,7 @@ flowchart LR
 
 ## Trained on diverse data
 
-Psi is pretrained on 20 public text-classification datasets spanning news, banking and assistant intents, emotions, questions, finance, reviews, toxicity, medical text, spam and encyclopedic topics, plus real agent workflows from bookkeeping and accounting. Every training episode is a different world: a random memory of 100 to 5,000 decisions, its own label set, its own imbalance, and queries from outside the memory. Some episodes mimic repeat traffic. Whole datasets are held out to test generalization to data Psi has never seen.
+Psi is pretrained for 15 minutes on one H100 across 20 public text-classification datasets spanning news, banking and assistant intents, emotions, questions, finance, reviews, toxicity, medical text, spam and encyclopedic topics, plus real agent workflows from bookkeeping and accounting. Every training episode is a different world: a random memory of 100 to 5,000 decisions, its own label set, its own imbalance, and queries from outside the memory. Some episodes mimic repeat traffic. Whole datasets are held out to test generalization to data Psi has never seen.
 
 ## Quickstart
 
