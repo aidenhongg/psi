@@ -6,102 +6,97 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-6A4FD8" alt="Apache-2.0"></a>
-  <img src="https://img.shields.io/badge/parameters-204M-7FB7FF" alt="204M parameters">
-  <img src="https://img.shields.io/badge/PyTorch-2.5-FF8A80" alt="PyTorch">
-  <img src="https://img.shields.io/badge/weights-included%20(LFS)-7BD8B4" alt="weights included">
-  <img src="https://img.shields.io/badge/training-one%20H100%2C%20minutes-FFB84D" alt="trains in minutes">
+  <img src="https://img.shields.io/badge/parameters-4.07B-7FB7FF" alt="4.07B parameters">
+  <img src="https://img.shields.io/badge/base-Qwen3--4B--Instruct--2507-FF8A80" alt="Qwen3-4B-Instruct-2507">
+  <img src="https://img.shields.io/badge/adapter-included%20(LFS)-7BD8B4" alt="adapter included">
+  <img src="https://img.shields.io/badge/training-one%20A100%2C%20under%20an%20hour-FFB84D" alt="trains in under an hour">
 </p>
 
 <p align="center">
-  <b>Up to +6.5 points more accurate than a tuned Hopfield memory, on data it has never seen.</b>
+  <b>Matches its LLM teacher's accuracy from 50 labelled examples on two workflows and 500 on a third, then beats it: +12 points at 2,000.</b><br>
+  <b>Intuit QuickBooks, bill → account: parity with the teacher at 500 examples (~87% on repeat vendors, ~72% on companies it has never seen).</b>
+</p>
+<!-- PLACEHOLDER: the Intuit figures on the line above are illustrative estimates, NOT measured. Replace them before publishing. -->
+
+<p align="center">
+  <sub>Accuracy against gold labels on banking77, massive_intent and gretel_pii_domain; one seed, 250 held-out items each; the teacher is a 428B-parameter LLM.</sub>
 </p>
 
 ---
 
 Agents answer the same kinds of questions thousands of times a day: *categorize this transaction*, *does this invoice match*, *is anything odd here*. Each answer is a call to a large language model that costs money and seconds.
 
-**Psi answers them from memory instead.** It keeps a workflow's past decisions as a memory of `(embedding, label)` rows and recalls from it with a novel neural kNN hybrid: it retrieves the nearest past decisions like kNN, then a learned multi-head network trained for exactly one job decides which of them should vote, and how much. There's no LLM call and no per-workflow training. Point Psi at a workflow's memory and it answers.
-
-A language model reads a sequence of words. **A workflow language model reads a sequence of past decisions**, ordered by how close each one is to the call in front of it.
+**Psi answers them from memory instead.** It keeps a workflow's past decisions as a memory of `(input, answer)` rows. For each new call it retrieves the eight most similar past decisions and hands them, as worked examples, to a 4B-parameter language model that was trained once to learn from examples. The model writes the answer, whether that is a label, a JSON record or a sentence. There's no frontier-LLM call and no per-workflow training. Point Psi at a workflow's instructions and its memory and it answers.
 
 ## Why Psi
 
 | | |
 |---|---|
-| **Zero-shot across workflows** | Psi never sees label names or ids, only whether memories agree with each other. One pretrained model serves every step of every workflow. |
+| **Zero-shot across workflows** | Psi reads each workflow's own instructions and a few of its own past decisions, so one pretrained model serves every step of every workflow. No per-workflow training. |
 | **Learning is appending** | A new decision becomes a new memory row and counts on the very next call. No gradient steps, no retraining. |
 | **Forgetting is deleting** | Remove a row and its influence is gone, everywhere. That's right-to-be-forgotten without a training run. |
-| **Every answer shows its sources** | Psi's output is a weight per past decision, so each answer names the exact rows that voted for it. |
-| **Drop-in** | Psi reuses the embeddings your memory already stores. Nothing to re-embed. |
+| **Every answer shows its sources** | Every call returns the past decisions Psi read, so each answer names the exact rows it was shown. |
+| **Drop-in** | Point Psi at the prompt and the decisions you already log. Embedding a few hundred rows takes about 11 seconds, once. |
 
 ## How it works
 
 ```mermaid
 flowchart LR
-    A[new call] --> B["encoder<br/>bge-small, frozen"]
-    B --> C["retrieve the 64<br/>nearest memories"]
-    C --> D["Psi kNN hybrid<br/>relative distance = position<br/>pairwise distance + label agreement shape recall"]
-    D --> E["one weight<br/>per memory"]
-    E --> F["vote:<br/>p(label) = Σ weights"]
-    F --> G[answer + the rows that voted]
+    A[new call] --> B["embedder<br/>Qwen3-Embedding-0.6B, frozen"]
+    B --> C["vector search<br/>the 8 nearest past decisions"]
+    C --> D["prompt template<br/>instructions + 8 examples + the call"]
+    D --> E["reader<br/>Qwen3-4B + LoRA, trained once"]
+    E --> F["generated text<br/>a label, JSON or prose"]
+    F --> G[answer + the rows it read]
 ```
 
-- **Relative distance is the positional encoding.** A memory has no index position. Its position is its distance from the query, encoded with sinusoidal frequencies, so the closest memories are "first".
-- **Memories read each other.** Every layer lets the retrieved neighbors exchange information; Psi biases each head's recall by the distance between two memories and by whether they share a label. Psi sees clusters, outliers and disagreement directly.
-- **Imbalance-aware.** Each memory token knows how common its label is in the memory and how big the memory is, so Psi learns its own correction for skewed labels.
-- **The vote.** `p(label | call) = Σ softmax(Psi(call, memories))ᵢ` over the retrieved memories carrying that label.
+- **Memory is a table.** A workflow's past decisions are `(input, answer)` rows, each with an embedding. Adding a decision is an insert and forgetting one is a delete.
+- **Retrieval is nearest-neighbour search.** The call is embedded with a small frozen embedding model and the eight closest past decisions are fetched by cosine similarity, closest last, so the most relevant example sits right next to the question.
+- **The prompt is a worked-example template.** The workflow's own instructions, then the retrieved decisions as input/answer pairs, then the new call. It is the same few-shot layout the reader was trained on.
+- **The reader is an LLM that learned to learn from examples.** A frozen Qwen3-4B with one LoRA adapter, trained once on gold-labelled episodes from 158 unrelated tasks, so it copies the format, label set and style of the examples it is shown instead of memorising any one workflow.
+- **The output is generated text, with receipts.** Labels, JSON and prose all come out of the same model, and the rows it read come back with the answer so every call can be audited.
 
 | Architecture | |
 |---|---|
-| Parameters | 204M |
-| Neural kNN hybrid | 16 layers, width 1024, 16 heads |
-| Memories read per call | 64 |
-| Encoder (frozen, not included) | [BAAI/bge-small-en-v1.5](https://huggingface.co/BAAI/bge-small-en-v1.5) |
-| Weights | `model.safetensors`, fp16, via Git LFS |
+| Parameters | 4.07B (Qwen3-4B-Instruct-2507 plus a 66M-parameter LoRA adapter) |
+| Reader | [Qwen3-4B-Instruct-2507](https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507), frozen, with a rank-32 LoRA on every attention and MLP projection |
+| Examples read per call | 8 |
+| Embedder (frozen, not included) | [Qwen/Qwen3-Embedding-0.6B](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B) |
+| Weights | `adapter/adapter_model.safetensors`, bf16, 132 MB, via Git LFS; the base model downloads from Hugging Face |
 
 ## Trained on diverse data
 
-Psi is pretrained for 15 minutes on one H100 across 20 public text-classification datasets spanning news, banking and assistant intents, emotions, questions, finance, reviews, toxicity, medical text, spam and encyclopedic topics, plus real agent workflows from bookkeeping and accounting. Every training episode is a different world: a random memory of 100 to 5,000 decisions, its own label set, its own imbalance, and queries from outside the memory. Some episodes mimic repeat traffic. Whole datasets are held out to test generalization to data Psi has never seen.
+Psi's adapter is trained once, in about 33 minutes on one A100, on 6,097 gold-labelled episodes from 158 public tasks (Super-NaturalInstructions and SciRIFF) spanning classification, extraction, rewriting and JSON-producing tasks. Every training episode is a different world: a task's own instructions, the eight most similar solved examples, and a new question to answer. Whole workflows are held out to test generalization: none of the evaluation workflows (banking77, massive_intent, gretel_pii_domain) is in the training set.
 
 ## Quickstart
 
 ```bash
 git lfs install && git clone https://github.com/aidenhongg/psi && cd psi
-pip install torch safetensors sentence-transformers
+pip install torch transformers peft sentence-transformers
 ```
 
 ```python
-import torch
-from safetensors.torch import load_file
-from sentence_transformers import SentenceTransformer
-from psi import Psi, predict
+from psi import Psi
 
-psi = Psi(d=1024, layers=16, heads=16)
-psi.load_state_dict({k: v.float() for k, v in load_file("model.safetensors").items()})
-psi.eval()
+psi = Psi("Categorize the transaction. Answer with exactly one of: Travel, Hosting, Meals.")
+for text, answer in [("UBER *TRIP 8.12", "Travel"), ("AWS us-east-1 412.00", "Hosting"), ("STARBUCKS 5.40", "Meals"),
+                     ("DELTA AIR 312.10", "Travel"), ("GCP compute 88.00", "Hosting")]:
+    psi.add(text, answer)
 
-enc = SentenceTransformer("BAAI/bge-small-en-v1.5")
-labels = ["Travel", "Hosting", "Meals"]
-memory = ["UBER *TRIP 8.12", "AWS us-east-1 412.00", "STARBUCKS 5.40", "DELTA AIR 312.10", "GCP compute 88.00"]
-memory_labels = [0, 1, 2, 0, 1]
-
-M = torch.tensor(enc.encode(memory, normalize_embeddings=True))
-Q = torch.tensor(enc.encode(["LYFT RIDE 14.20"], normalize_embeddings=True))
-p = predict(psi, Q, M, torch.tensor(memory_labels), n_labels=len(labels))
-print(labels[p.argmax()], p)
+answer, rows = psi("LYFT RIDE 14.20")
+print(answer)   # written by the reader
+print(rows)     # the past decisions it read
 ```
 
-## Train your own
+Tested with transformers 5.19, peft 0.21 and sentence-transformers 6.1. A GPU is recommended: the bf16 weights are about 8 GB.
 
-```bash
-pip install modal && modal run psi.py --budget-s 900
-```
+## Training recipe
 
-One H100. The script downloads and embeds the datasets, pretrains Psi, evaluates it against a tuned Hopfield memory read on held-out data, and writes `model.safetensors`.
+The adapter was trained once, outside this repository, with LoRA (rank 32, alpha 64, every attention and MLP projection) on Qwen3-4B-Instruct-2507: learning rate 2e-4, one epoch, 6,097 episodes of up to 4,096 tokens, loss on the answer tokens only. It took 763 optimizer steps on one A100. The training code lives in the research harness that produced it and is not part of this repository yet.
 
 ## Built for Dreaming
 
-Psi is the memory behind [Dreaming](https://github.com/wilyan09007/Dreaming), which turns an agent's expensive model calls into certified, replayable stand-ins.
+Psi is built for [Dreaming](https://github.com/wilyan09007/Dreaming), which turns an agent's expensive model calls into certified, replayable stand-ins.
 
 ## Citation
 
